@@ -292,6 +292,7 @@ def get_constraints_filter_map():
 
 def _get_constraints(args: Tuple[Any, ...]) -> Iterator["at.BaseMetadata"]:
     at = sys.modules.get("annotated_types")
+    unpack = getattr(typing, "Unpack", object())
     for arg in args:
         if at and isinstance(arg, at.BaseMetadata):
             yield arg
@@ -299,8 +300,20 @@ def _get_constraints(args: Tuple[Any, ...]) -> Iterator["at.BaseMetadata"]:
             for subarg in arg:
                 if getattr(subarg, "__is_annotated_types_grouped_metadata__", False):
                     yield from _get_constraints(tuple(subarg))
+                elif get_origin(arg) is unpack:
+                    yield from _get_constraints(get_args(subarg))
                 else:
                     yield subarg
+                    
+        elif get_origin(arg) is unpack:
+            for subarg in get_args(arg):
+                if getattr(subarg, "__is_annotated_types_grouped_metadata__", False):
+                    yield from _get_constraints(tuple(subarg))
+                elif get_origin(arg) is unpack:
+                    yield from _get_constraints(get_args(subarg))
+                else:
+                    yield subarg
+                    
         elif at and isinstance(arg, slice) and arg.step in (1, None):
             yield from at.Len(arg.start or 0, arg.stop)
 
